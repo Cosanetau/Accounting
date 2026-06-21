@@ -94,6 +94,8 @@ export function mapIncomeRow(row) {
     source: row.source,
     category: row.category,
     notes: row.notes || '',
+    receiptPath: row.receipt_path || '',
+    receiptFilename: row.receipt_filename || '',
     stripeChargeId: row.stripe_charge_id || '',
     stripeInvoiceId: row.stripe_invoice_id || '',
     createdAt: row.created_at,

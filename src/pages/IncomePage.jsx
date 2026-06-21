@@ -1,8 +1,9 @@
-import { Download, Plus } from 'lucide-react';
+import { Download, Plus, Upload } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import GstSummaryBar from '../components/GstSummaryBar';
 import PeriodPicker from '../components/PeriodPicker';
 import { useAuth } from '../lib/AuthContext';
+import { supabase } from '../lib/supabase';
 import {
   createIncome,
   fetchSummary,
@@ -18,10 +19,11 @@ const emptyForm = {
   amountIncGst: '',
   category: 'subscription',
   notes: '',
+  receiptFile: null,
 };
 
 export default function IncomePage() {
-  const { session, canEdit } = useAuth();
+  const { session, canEdit, accountingUser } = useAuth();
   const now = new Date();
   const [period, setPeriod] = useState({
     year: now.getFullYear(),
@@ -34,6 +36,7 @@ export default function IncomePage() {
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [errorMessage, setErrorMessage] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
 
   const loadData = useCallback(async () => {
     if (!session?.access_token) {
@@ -83,6 +86,25 @@ export default function IncomePage() {
     }
   }
 
+  async function uploadAttachment(file) {
+    if (!file || !accountingUser?.userId) {
+      return { receiptPath: '', receiptFilename: '' };
+    }
+
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const path = `income/${accountingUser.userId}/${Date.now()}-${safeName}`;
+
+    const { error } = await supabase.storage.from('accounting-receipts').upload(path, file, {
+      upsert: false,
+    });
+
+    if (error) {
+      throw new Error(error.message || 'File upload failed.');
+    }
+
+    return { receiptPath: path, receiptFilename: file.name };
+  }
+
   async function handleCreateIncome(event) {
     event.preventDefault();
 
@@ -90,9 +112,28 @@ export default function IncomePage() {
       return;
     }
 
+    setIsSaving(true);
+    setErrorMessage('');
+
     try {
+      let receiptPath = '';
+      let receiptFilename = '';
+
+      if (form.receiptFile) {
+        const uploaded = await uploadAttachment(form.receiptFile);
+        receiptPath = uploaded.receiptPath;
+        receiptFilename = uploaded.receiptFilename;
+      }
+
       await createIncome(session.access_token, {
-        ...form,
+        entryDate: form.entryDate,
+        description: form.description,
+        customerName: form.customerName,
+        amountIncGst: form.amountIncGst,
+        category: form.category,
+        notes: form.notes,
+        receiptPath,
+        receiptFilename,
         gstMode: 'inc',
       });
       setShowModal(false);
@@ -100,6 +141,8 @@ export default function IncomePage() {
       await loadData();
     } catch (error) {
       setErrorMessage(error.message || 'Could not save sale.');
+    } finally {
+      setIsSaving(false);
     }
   }
 
@@ -151,16 +194,17 @@ export default function IncomePage() {
               <th>GST</th>
               <th>Inc GST</th>
               <th>Source</th>
+              <th>Attachment</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={7}>Loading income...</td>
+                <td colSpan={8}>Loading income...</td>
               </tr>
             ) : items.length === 0 ? (
               <tr>
-                <td colSpan={7}>No income recorded for this period.</td>
+                <td colSpan={8}>No income recorded for this period.</td>
               </tr>
             ) : (
               items.map((item) => (
@@ -173,6 +217,13 @@ export default function IncomePage() {
                   <td>{formatMoney(item.amountIncGst)}</td>
                   <td>
                     <span className={`source-pill is-${item.source}`}>{item.source}</span>
+                  </td>
+                  <td>
+                    {item.receiptFilename ? (
+                      <span className="receipt-pill">{item.receiptFilename}</span>
+                    ) : (
+                      '—'
+                    )}
                   </td>
                 </tr>
               ))
@@ -232,6 +283,21 @@ export default function IncomePage() {
               <span>GST: {formatMoney(previewGst.gstAmount)}</span>
             </div>
 
+            <label className="file-upload">
+              <span>
+                <Upload size={16} />
+                Upload invoice / receipt / image
+              </span>
+              <input
+                accept="image/*,application/pdf"
+                type="file"
+                onChange={(event) =>
+                  setForm({ ...form, receiptFile: event.target.files?.[0] || null })
+                }
+              />
+              {form.receiptFile ? <small>{form.receiptFile.name}</small> : null}
+            </label>
+
             <label>
               Notes
               <textarea
@@ -245,8 +311,8 @@ export default function IncomePage() {
               <button className="secondary-action" type="button" onClick={() => setShowModal(false)}>
                 Cancel
               </button>
-              <button className="primary-action" type="submit">
-                Save sale
+              <button className="primary-action" disabled={isSaving} type="submit">
+                {isSaving ? 'Saving...' : 'Save sale'}
               </button>
             </div>
           </form>

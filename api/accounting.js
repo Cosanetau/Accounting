@@ -115,6 +115,8 @@ export default async function handler(request, response) {
     const category = String(request.body?.category || 'general').trim() || 'general';
     const notes = String(request.body?.notes || '').trim();
     const gstMode = String(request.body?.gstMode || 'inc').trim();
+    const receiptPath = String(request.body?.receiptPath || '').trim();
+    const receiptFilename = String(request.body?.receiptFilename || '').trim();
 
     let amounts;
 
@@ -139,6 +141,8 @@ export default async function handler(request, response) {
         amount_inc_gst: amounts.amountIncGst,
         source: 'manual',
         category,
+        receipt_path: receiptPath || null,
+        receipt_filename: receiptFilename || null,
         notes: notes || null,
         created_by: auth.profile.id,
       })
