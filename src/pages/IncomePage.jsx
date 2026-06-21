@@ -1,14 +1,19 @@
 import { Download, Plus, Upload } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
+import AttachmentLink from '../components/AttachmentLink';
+import ConfirmModal from '../components/ConfirmModal';
 import GstSummaryBar from '../components/GstSummaryBar';
 import PeriodPicker from '../components/PeriodPicker';
+import RecordActions from '../components/RecordActions';
 import { useAuth } from '../lib/AuthContext';
-import { supabase } from '../lib/supabase';
+import { uploadAccountingFile } from '../utils/attachments';
 import {
   createIncome,
+  deleteIncome,
   fetchSummary,
   listIncome,
   syncStripeIncome,
+  updateIncome,
 } from '../utils/accountingApi';
 import { formatMoney, splitGstFromInc } from '../utils/gst';
 
@@ -20,7 +25,25 @@ const emptyForm = {
   category: 'subscription',
   notes: '',
   receiptFile: null,
+  existingReceiptPath: '',
+  existingReceiptFilename: '',
+  clearReceipt: false,
 };
+
+function itemToForm(item) {
+  return {
+    entryDate: item.entryDate,
+    description: item.description,
+    customerName: item.customerName || '',
+    amountIncGst: String(item.amountIncGst || ''),
+    category: item.category || 'subscription',
+    notes: item.notes || '',
+    receiptFile: null,
+    existingReceiptPath: item.receiptPath || '',
+    existingReceiptFilename: item.receiptFilename || '',
+    clearReceipt: false,
+  };
+}
 
 export default function IncomePage() {
   const { session, canEdit, accountingUser } = useAuth();
@@ -34,9 +57,12 @@ export default function IncomePage() {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const [editingItem, setEditingItem] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [errorMessage, setErrorMessage] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const loadData = useCallback(async () => {
     if (!session?.access_token) {
@@ -65,6 +91,24 @@ export default function IncomePage() {
     void loadData();
   }, [loadData]);
 
+  function openCreateModal() {
+    setEditingItem(null);
+    setForm(emptyForm);
+    setShowModal(true);
+  }
+
+  function openEditModal(item) {
+    setEditingItem(item);
+    setForm(itemToForm(item));
+    setShowModal(true);
+  }
+
+  function closeModal() {
+    setShowModal(false);
+    setEditingItem(null);
+    setForm(emptyForm);
+  }
+
   async function handleSyncStripe() {
     if (!session?.access_token) {
       return;
@@ -86,26 +130,7 @@ export default function IncomePage() {
     }
   }
 
-  async function uploadAttachment(file) {
-    if (!file || !accountingUser?.userId) {
-      return { receiptPath: '', receiptFilename: '' };
-    }
-
-    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-    const path = `income/${accountingUser.userId}/${Date.now()}-${safeName}`;
-
-    const { error } = await supabase.storage.from('accounting-receipts').upload(path, file, {
-      upsert: false,
-    });
-
-    if (error) {
-      throw new Error(error.message || 'File upload failed.');
-    }
-
-    return { receiptPath: path, receiptFilename: file.name };
-  }
-
-  async function handleCreateIncome(event) {
+  async function handleSaveIncome(event) {
     event.preventDefault();
 
     if (!session?.access_token) {
@@ -116,16 +141,22 @@ export default function IncomePage() {
     setErrorMessage('');
 
     try {
-      let receiptPath = '';
-      let receiptFilename = '';
+      let receiptPath = form.existingReceiptPath;
+      let receiptFilename = form.existingReceiptFilename;
+      let clearReceipt = form.clearReceipt;
 
       if (form.receiptFile) {
-        const uploaded = await uploadAttachment(form.receiptFile);
+        const uploaded = await uploadAccountingFile(
+          form.receiptFile,
+          accountingUser.userId,
+          'income',
+        );
         receiptPath = uploaded.receiptPath;
         receiptFilename = uploaded.receiptFilename;
+        clearReceipt = false;
       }
 
-      await createIncome(session.access_token, {
+      const payload = {
         entryDate: form.entryDate,
         description: form.description,
         customerName: form.customerName,
@@ -134,15 +165,41 @@ export default function IncomePage() {
         notes: form.notes,
         receiptPath,
         receiptFilename,
+        clearReceipt,
         gstMode: 'inc',
-      });
-      setShowModal(false);
-      setForm(emptyForm);
+      };
+
+      if (editingItem) {
+        await updateIncome(session.access_token, { id: editingItem.id, ...payload });
+      } else {
+        await createIncome(session.access_token, payload);
+      }
+
+      closeModal();
       await loadData();
     } catch (error) {
       setErrorMessage(error.message || 'Could not save sale.');
     } finally {
       setIsSaving(false);
+    }
+  }
+
+  async function handleConfirmDelete() {
+    if (!session?.access_token || !deleteTarget) {
+      return;
+    }
+
+    setIsDeleting(true);
+    setErrorMessage('');
+
+    try {
+      await deleteIncome(session.access_token, deleteTarget.id);
+      setDeleteTarget(null);
+      await loadData();
+    } catch (error) {
+      setErrorMessage(error.message || 'Could not delete sale.');
+    } finally {
+      setIsDeleting(false);
     }
   }
 
@@ -170,7 +227,7 @@ export default function IncomePage() {
                 <Download size={16} />
                 {syncing ? 'Syncing Stripe...' : 'Import from Stripe'}
               </button>
-              <button className="primary-action" type="button" onClick={() => setShowModal(true)}>
+              <button className="primary-action" type="button" onClick={openCreateModal}>
                 <Plus size={16} />
                 Add a sale
               </button>
@@ -195,16 +252,17 @@ export default function IncomePage() {
               <th>Inc GST</th>
               <th>Source</th>
               <th>Attachment</th>
+              {canEdit ? <th /> : null}
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={8}>Loading income...</td>
+                <td colSpan={canEdit ? 9 : 8}>Loading income...</td>
               </tr>
             ) : items.length === 0 ? (
               <tr>
-                <td colSpan={8}>No income recorded for this period.</td>
+                <td colSpan={canEdit ? 9 : 8}>No income recorded for this period.</td>
               </tr>
             ) : (
               items.map((item) => (
@@ -219,12 +277,17 @@ export default function IncomePage() {
                     <span className={`source-pill is-${item.source}`}>{item.source}</span>
                   </td>
                   <td>
-                    {item.receiptFilename ? (
-                      <span className="receipt-pill">{item.receiptFilename}</span>
-                    ) : (
-                      '—'
-                    )}
+                    <AttachmentLink filename={item.receiptFilename} path={item.receiptPath} />
                   </td>
+                  {canEdit ? (
+                    <td>
+                      <RecordActions
+                        canEdit
+                        onDelete={() => setDeleteTarget(item)}
+                        onEdit={() => openEditModal(item)}
+                      />
+                    </td>
+                  ) : null}
                 </tr>
               ))
             )}
@@ -233,15 +296,19 @@ export default function IncomePage() {
       </section>
 
       {showModal ? (
-        <div className="accounting-modal-backdrop" onClick={() => setShowModal(false)}>
+        <div className="accounting-modal-backdrop" onClick={closeModal}>
           <form
             className="accounting-modal"
             onClick={(event) => event.stopPropagation()}
-            onSubmit={handleCreateIncome}
+            onSubmit={handleSaveIncome}
           >
             <header>
-              <h2>Add a sale</h2>
-              <p>Record income that did not come through Stripe.</p>
+              <h2>{editingItem ? 'Edit sale' : 'Add a sale'}</h2>
+              <p>
+                {editingItem
+                  ? 'Update the sale details or replace the attachment.'
+                  : 'Record income that did not come through Stripe.'}
+              </p>
             </header>
 
             <label>
@@ -283,16 +350,37 @@ export default function IncomePage() {
               <span>GST: {formatMoney(previewGst.gstAmount)}</span>
             </div>
 
+            {form.existingReceiptFilename && !form.clearReceipt ? (
+              <div className="current-attachment">
+                <span>Current file:</span>
+                <AttachmentLink
+                  filename={form.existingReceiptFilename}
+                  path={form.existingReceiptPath}
+                />
+                <button
+                  className="text-button"
+                  type="button"
+                  onClick={() => setForm({ ...form, clearReceipt: true, receiptFile: null })}
+                >
+                  Remove attachment
+                </button>
+              </div>
+            ) : null}
+
             <label className="file-upload">
               <span>
                 <Upload size={16} />
-                Upload invoice / receipt / image
+                {editingItem ? 'Replace attachment' : 'Upload invoice / receipt / image'}
               </span>
               <input
                 accept="image/*,application/pdf"
                 type="file"
                 onChange={(event) =>
-                  setForm({ ...form, receiptFile: event.target.files?.[0] || null })
+                  setForm({
+                    ...form,
+                    receiptFile: event.target.files?.[0] || null,
+                    clearReceipt: false,
+                  })
                 }
               />
               {form.receiptFile ? <small>{form.receiptFile.name}</small> : null}
@@ -308,15 +396,26 @@ export default function IncomePage() {
             </label>
 
             <div className="accounting-modal-actions">
-              <button className="secondary-action" type="button" onClick={() => setShowModal(false)}>
+              <button className="secondary-action" type="button" onClick={closeModal}>
                 Cancel
               </button>
               <button className="primary-action" disabled={isSaving} type="submit">
-                {isSaving ? 'Saving...' : 'Save sale'}
+                {isSaving ? 'Saving...' : editingItem ? 'Save changes' : 'Save sale'}
               </button>
             </div>
           </form>
         </div>
+      ) : null}
+
+      {deleteTarget ? (
+        <ConfirmModal
+          confirmLabel="Yes, delete"
+          isBusy={isDeleting}
+          message={`Are you sure you want to delete "${deleteTarget.description}"? This cannot be undone.`}
+          title="Delete sale?"
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={handleConfirmDelete}
+        />
       ) : null}
     </div>
   );

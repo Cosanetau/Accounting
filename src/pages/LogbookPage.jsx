@@ -1,8 +1,15 @@
 import { Plus } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
+import ConfirmModal from '../components/ConfirmModal';
 import PeriodPicker from '../components/PeriodPicker';
+import RecordActions from '../components/RecordActions';
 import { useAuth } from '../lib/AuthContext';
-import { createLogbookEntry, listLogbook } from '../utils/accountingApi';
+import {
+  createLogbookEntry,
+  deleteLogbookEntry,
+  listLogbook,
+  updateLogbookEntry,
+} from '../utils/accountingApi';
 
 const emptyForm = {
   entryDate: new Date().toISOString().slice(0, 10),
@@ -14,6 +21,18 @@ const emptyForm = {
   notes: '',
 };
 
+function itemToForm(item) {
+  return {
+    entryDate: item.entryDate,
+    description: item.description,
+    purpose: item.purpose || '',
+    startLocation: item.startLocation || '',
+    endLocation: item.endLocation || '',
+    distanceKm: item.distanceKm != null ? String(item.distanceKm) : '',
+    notes: item.notes || '',
+  };
+}
+
 export default function LogbookPage() {
   const { session, canEdit } = useAuth();
   const now = new Date();
@@ -24,8 +43,12 @@ export default function LogbookPage() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [editingItem, setEditingItem] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [errorMessage, setErrorMessage] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const loadData = useCallback(async () => {
     if (!session?.access_token) {
@@ -49,23 +72,71 @@ export default function LogbookPage() {
     void loadData();
   }, [loadData]);
 
-  async function handleCreateEntry(event) {
+  function openCreateModal() {
+    setEditingItem(null);
+    setForm(emptyForm);
+    setShowModal(true);
+  }
+
+  function openEditModal(item) {
+    setEditingItem(item);
+    setForm(itemToForm(item));
+    setShowModal(true);
+  }
+
+  function closeModal() {
+    setShowModal(false);
+    setEditingItem(null);
+    setForm(emptyForm);
+  }
+
+  async function handleSaveEntry(event) {
     event.preventDefault();
 
     if (!session?.access_token) {
       return;
     }
 
+    setIsSaving(true);
+    setErrorMessage('');
+
     try {
-      await createLogbookEntry(session.access_token, {
+      const payload = {
         ...form,
         distanceKm: form.distanceKm ? Number(form.distanceKm) : null,
-      });
-      setShowModal(false);
-      setForm(emptyForm);
+      };
+
+      if (editingItem) {
+        await updateLogbookEntry(session.access_token, { id: editingItem.id, ...payload });
+      } else {
+        await createLogbookEntry(session.access_token, payload);
+      }
+
+      closeModal();
       await loadData();
     } catch (error) {
       setErrorMessage(error.message || 'Could not save log book entry.');
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handleConfirmDelete() {
+    if (!session?.access_token || !deleteTarget) {
+      return;
+    }
+
+    setIsDeleting(true);
+    setErrorMessage('');
+
+    try {
+      await deleteLogbookEntry(session.access_token, deleteTarget.id);
+      setDeleteTarget(null);
+      await loadData();
+    } catch (error) {
+      setErrorMessage(error.message || 'Could not delete log book entry.');
+    } finally {
+      setIsDeleting(false);
     }
   }
 
@@ -81,7 +152,7 @@ export default function LogbookPage() {
         <div className="accounting-header-actions">
           <PeriodPicker month={period.month} year={period.year} onChange={setPeriod} />
           {canEdit ? (
-            <button className="primary-action" type="button" onClick={() => setShowModal(true)}>
+            <button className="primary-action" type="button" onClick={openCreateModal}>
               <Plus size={16} />
               Add entry
             </button>
@@ -101,16 +172,17 @@ export default function LogbookPage() {
               <th>From</th>
               <th>To</th>
               <th>Km</th>
+              {canEdit ? <th /> : null}
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={6}>Loading log book...</td>
+                <td colSpan={canEdit ? 7 : 6}>Loading log book...</td>
               </tr>
             ) : items.length === 0 ? (
               <tr>
-                <td colSpan={6}>No log book entries for this period.</td>
+                <td colSpan={canEdit ? 7 : 6}>No log book entries for this period.</td>
               </tr>
             ) : (
               items.map((item) => (
@@ -121,6 +193,15 @@ export default function LogbookPage() {
                   <td>{item.startLocation || '—'}</td>
                   <td>{item.endLocation || '—'}</td>
                   <td>{item.distanceKm != null ? item.distanceKm : '—'}</td>
+                  {canEdit ? (
+                    <td>
+                      <RecordActions
+                        canEdit
+                        onDelete={() => setDeleteTarget(item)}
+                        onEdit={() => openEditModal(item)}
+                      />
+                    </td>
+                  ) : null}
                 </tr>
               ))
             )}
@@ -129,14 +210,14 @@ export default function LogbookPage() {
       </section>
 
       {showModal ? (
-        <div className="accounting-modal-backdrop" onClick={() => setShowModal(false)}>
+        <div className="accounting-modal-backdrop" onClick={closeModal}>
           <form
             className="accounting-modal"
             onClick={(event) => event.stopPropagation()}
-            onSubmit={handleCreateEntry}
+            onSubmit={handleSaveEntry}
           >
             <header>
-              <h2>Add log book entry</h2>
+              <h2>{editingItem ? 'Edit log book entry' : 'Add log book entry'}</h2>
               <p>Record a trip or business activity for your accountant.</p>
             </header>
 
@@ -198,15 +279,26 @@ export default function LogbookPage() {
             </label>
 
             <div className="accounting-modal-actions">
-              <button className="secondary-action" type="button" onClick={() => setShowModal(false)}>
+              <button className="secondary-action" type="button" onClick={closeModal}>
                 Cancel
               </button>
-              <button className="primary-action" type="submit">
-                Save entry
+              <button className="primary-action" disabled={isSaving} type="submit">
+                {isSaving ? 'Saving...' : editingItem ? 'Save changes' : 'Save entry'}
               </button>
             </div>
           </form>
         </div>
+      ) : null}
+
+      {deleteTarget ? (
+        <ConfirmModal
+          confirmLabel="Yes, delete"
+          isBusy={isDeleting}
+          message={`Are you sure you want to delete "${deleteTarget.description}"? This cannot be undone.`}
+          title="Delete log book entry?"
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={handleConfirmDelete}
+        />
       ) : null}
     </div>
   );

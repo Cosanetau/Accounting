@@ -40,6 +40,14 @@ export function createIncome(token, payload) {
   return request('create-income', { token, body: payload, method: 'POST' });
 }
 
+export function updateIncome(token, payload) {
+  return request('update-income', { token, body: payload, method: 'POST' });
+}
+
+export function deleteIncome(token, id) {
+  return request('delete-income', { token, body: { id }, method: 'POST' });
+}
+
 export function listExpenses(token, filters = {}) {
   return request('list-expenses', { token, body: filters, method: 'POST' });
 }
@@ -48,12 +56,28 @@ export function createExpense(token, payload) {
   return request('create-expense', { token, body: payload, method: 'POST' });
 }
 
+export function updateExpense(token, payload) {
+  return request('update-expense', { token, body: payload, method: 'POST' });
+}
+
+export function deleteExpense(token, id) {
+  return request('delete-expense', { token, body: { id }, method: 'POST' });
+}
+
 export function listLogbook(token, filters = {}) {
   return request('list-logbook', { token, body: filters, method: 'POST' });
 }
 
 export function createLogbookEntry(token, payload) {
   return request('create-logbook', { token, body: payload, method: 'POST' });
+}
+
+export function updateLogbookEntry(token, payload) {
+  return request('update-logbook', { token, body: payload, method: 'POST' });
+}
+
+export function deleteLogbookEntry(token, id) {
+  return request('delete-logbook', { token, body: { id }, method: 'POST' });
 }
 
 export function syncStripeIncome(token, payload = {}) {

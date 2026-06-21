@@ -156,6 +156,96 @@ export default async function handler(request, response) {
     return response.status(200).json({ item: mapIncomeRow(data) });
   }
 
+  if (action === 'update-income') {
+    const auth = await requireAccountingUser(request, { minRole: 'accountant' });
+
+    if (auth.error) {
+      return response.status(auth.status).json({ error: auth.error });
+    }
+
+    const id = String(request.body?.id || '').trim();
+    const description = String(request.body?.description || '').trim();
+    const entryDate = String(request.body?.entryDate || '').trim();
+    const customerName = String(request.body?.customerName || '').trim();
+    const category = String(request.body?.category || 'general').trim() || 'general';
+    const notes = String(request.body?.notes || '').trim();
+    const gstMode = String(request.body?.gstMode || 'inc').trim();
+    const receiptPath = String(request.body?.receiptPath || '').trim();
+    const receiptFilename = String(request.body?.receiptFilename || '').trim();
+    const clearReceipt = request.body?.clearReceipt === true;
+
+    if (!id) {
+      return response.status(400).json({ error: 'Income ID is required.' });
+    }
+
+    let amounts;
+
+    if (gstMode === 'ex') {
+      amounts = combineGstFromEx(request.body?.amountExGst);
+    } else {
+      amounts = splitGstFromInc(request.body?.amountIncGst);
+    }
+
+    if (!description || !amounts.amountIncGst) {
+      return response.status(400).json({ error: 'Description and amount are required.' });
+    }
+
+    const updatePayload = {
+      entry_date: entryDate,
+      description,
+      customer_name: customerName || null,
+      amount_ex_gst: amounts.amountExGst,
+      gst_amount: amounts.gstAmount,
+      amount_inc_gst: amounts.amountIncGst,
+      category,
+      notes: notes || null,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (clearReceipt) {
+      updatePayload.receipt_path = null;
+      updatePayload.receipt_filename = null;
+    } else if (receiptPath) {
+      updatePayload.receipt_path = receiptPath;
+      updatePayload.receipt_filename = receiptFilename || null;
+    }
+
+    const { data, error } = await auth.supabaseAdmin
+      .from('accounting_income')
+      .update(updatePayload)
+      .eq('id', id)
+      .select('*')
+      .single();
+
+    if (error) {
+      return response.status(400).json({ error: error.message });
+    }
+
+    return response.status(200).json({ item: mapIncomeRow(data) });
+  }
+
+  if (action === 'delete-income') {
+    const auth = await requireAccountingUser(request, { minRole: 'accountant' });
+
+    if (auth.error) {
+      return response.status(auth.status).json({ error: auth.error });
+    }
+
+    const id = String(request.body?.id || '').trim();
+
+    if (!id) {
+      return response.status(400).json({ error: 'Income ID is required.' });
+    }
+
+    const { error } = await auth.supabaseAdmin.from('accounting_income').delete().eq('id', id);
+
+    if (error) {
+      return response.status(400).json({ error: error.message });
+    }
+
+    return response.status(200).json({ deleted: true });
+  }
+
   if (action === 'list-expenses') {
     const auth = await requireAccountingUser(request);
 
@@ -240,6 +330,98 @@ export default async function handler(request, response) {
     return response.status(200).json({ item: mapExpenseRow(data) });
   }
 
+  if (action === 'update-expense') {
+    const auth = await requireAccountingUser(request, { minRole: 'accountant' });
+
+    if (auth.error) {
+      return response.status(auth.status).json({ error: auth.error });
+    }
+
+    const id = String(request.body?.id || '').trim();
+    const supplierName = String(request.body?.supplierName || '').trim();
+    const description = String(request.body?.description || '').trim();
+    const entryDate = String(request.body?.entryDate || '').trim();
+    const category = String(request.body?.category || 'general').trim() || 'general';
+    const notes = String(request.body?.notes || '').trim();
+    const gstClaimable = request.body?.gstClaimable !== false;
+    const gstMode = String(request.body?.gstMode || 'inc').trim();
+    const receiptPath = String(request.body?.receiptPath || '').trim();
+    const receiptFilename = String(request.body?.receiptFilename || '').trim();
+    const clearReceipt = request.body?.clearReceipt === true;
+
+    if (!id) {
+      return response.status(400).json({ error: 'Expense ID is required.' });
+    }
+
+    let amounts;
+
+    if (gstMode === 'ex') {
+      amounts = combineGstFromEx(request.body?.amountExGst);
+    } else {
+      amounts = splitGstFromInc(request.body?.amountIncGst);
+    }
+
+    if (!supplierName || !amounts.amountIncGst) {
+      return response.status(400).json({ error: 'Supplier and amount are required.' });
+    }
+
+    const updatePayload = {
+      entry_date: entryDate,
+      supplier_name: supplierName,
+      description,
+      amount_ex_gst: amounts.amountExGst,
+      gst_amount: amounts.gstAmount,
+      amount_inc_gst: amounts.amountIncGst,
+      gst_claimable: gstClaimable,
+      category,
+      notes: notes || null,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (clearReceipt) {
+      updatePayload.receipt_path = null;
+      updatePayload.receipt_filename = null;
+    } else if (receiptPath) {
+      updatePayload.receipt_path = receiptPath;
+      updatePayload.receipt_filename = receiptFilename || null;
+    }
+
+    const { data, error } = await auth.supabaseAdmin
+      .from('accounting_expenses')
+      .update(updatePayload)
+      .eq('id', id)
+      .select('*')
+      .single();
+
+    if (error) {
+      return response.status(400).json({ error: error.message });
+    }
+
+    return response.status(200).json({ item: mapExpenseRow(data) });
+  }
+
+  if (action === 'delete-expense') {
+    const auth = await requireAccountingUser(request, { minRole: 'accountant' });
+
+    if (auth.error) {
+      return response.status(auth.status).json({ error: auth.error });
+    }
+
+    const id = String(request.body?.id || '').trim();
+
+    if (!id) {
+      return response.status(400).json({ error: 'Expense ID is required.' });
+    }
+
+    const { error } = await auth.supabaseAdmin.from('accounting_expenses').delete().eq('id', id);
+
+    if (error) {
+      return response.status(400).json({ error: error.message });
+    }
+
+    return response.status(200).json({ deleted: true });
+  }
+
   if (action === 'list-logbook') {
     const auth = await requireAccountingUser(request);
 
@@ -308,6 +490,78 @@ export default async function handler(request, response) {
     }
 
     return response.status(200).json({ item: mapLogbookRow(data) });
+  }
+
+  if (action === 'update-logbook') {
+    const auth = await requireAccountingUser(request, { minRole: 'accountant' });
+
+    if (auth.error) {
+      return response.status(auth.status).json({ error: auth.error });
+    }
+
+    const id = String(request.body?.id || '').trim();
+    const description = String(request.body?.description || '').trim();
+    const purpose = String(request.body?.purpose || '').trim();
+    const entryDate = String(request.body?.entryDate || '').trim();
+    const startLocation = String(request.body?.startLocation || '').trim();
+    const endLocation = String(request.body?.endLocation || '').trim();
+    const notes = String(request.body?.notes || '').trim();
+    const distanceKm = request.body?.distanceKm ? Number(request.body.distanceKm) : null;
+
+    if (!id) {
+      return response.status(400).json({ error: 'Log book entry ID is required.' });
+    }
+
+    if (!description) {
+      return response.status(400).json({ error: 'Description is required.' });
+    }
+
+    const { data, error } = await auth.supabaseAdmin
+      .from('accounting_logbook_entries')
+      .update({
+        entry_date: entryDate,
+        description,
+        purpose,
+        start_location: startLocation || null,
+        end_location: endLocation || null,
+        distance_km: distanceKm,
+        notes: notes || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .select('*')
+      .single();
+
+    if (error) {
+      return response.status(400).json({ error: error.message });
+    }
+
+    return response.status(200).json({ item: mapLogbookRow(data) });
+  }
+
+  if (action === 'delete-logbook') {
+    const auth = await requireAccountingUser(request, { minRole: 'accountant' });
+
+    if (auth.error) {
+      return response.status(auth.status).json({ error: auth.error });
+    }
+
+    const id = String(request.body?.id || '').trim();
+
+    if (!id) {
+      return response.status(400).json({ error: 'Log book entry ID is required.' });
+    }
+
+    const { error } = await auth.supabaseAdmin
+      .from('accounting_logbook_entries')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      return response.status(400).json({ error: error.message });
+    }
+
+    return response.status(200).json({ deleted: true });
   }
 
   if (action === 'sync-stripe') {

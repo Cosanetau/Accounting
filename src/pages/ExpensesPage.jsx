@@ -1,10 +1,19 @@
 import { Plus, Upload } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
+import AttachmentLink from '../components/AttachmentLink';
+import ConfirmModal from '../components/ConfirmModal';
 import GstSummaryBar from '../components/GstSummaryBar';
 import PeriodPicker from '../components/PeriodPicker';
+import RecordActions from '../components/RecordActions';
 import { useAuth } from '../lib/AuthContext';
-import { supabase } from '../lib/supabase';
-import { createExpense, fetchSummary, listExpenses } from '../utils/accountingApi';
+import { uploadAccountingFile } from '../utils/attachments';
+import {
+  createExpense,
+  deleteExpense,
+  fetchSummary,
+  listExpenses,
+  updateExpense,
+} from '../utils/accountingApi';
 import { formatMoney, splitGstFromInc } from '../utils/gst';
 
 const emptyForm = {
@@ -16,7 +25,26 @@ const emptyForm = {
   category: 'general',
   notes: '',
   receiptFile: null,
+  existingReceiptPath: '',
+  existingReceiptFilename: '',
+  clearReceipt: false,
 };
+
+function itemToForm(item) {
+  return {
+    entryDate: item.entryDate,
+    supplierName: item.supplierName,
+    description: item.description || '',
+    amountIncGst: String(item.amountIncGst || ''),
+    gstClaimable: item.gstClaimable !== false,
+    category: item.category || 'general',
+    notes: item.notes || '',
+    receiptFile: null,
+    existingReceiptPath: item.receiptPath || '',
+    existingReceiptFilename: item.receiptFilename || '',
+    clearReceipt: false,
+  };
+}
 
 export default function ExpensesPage() {
   const { session, canEdit, accountingUser } = useAuth();
@@ -29,9 +57,12 @@ export default function ExpensesPage() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [editingItem, setEditingItem] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [errorMessage, setErrorMessage] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const loadData = useCallback(async () => {
     if (!session?.access_token) {
@@ -60,26 +91,25 @@ export default function ExpensesPage() {
     void loadData();
   }, [loadData]);
 
-  async function uploadReceipt(file) {
-    if (!file || !accountingUser?.userId) {
-      return { receiptPath: '', receiptFilename: '' };
-    }
-
-    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-    const path = `receipts/${accountingUser.userId}/${Date.now()}-${safeName}`;
-
-    const { error } = await supabase.storage.from('accounting-receipts').upload(path, file, {
-      upsert: false,
-    });
-
-    if (error) {
-      throw new Error(error.message || 'Receipt upload failed.');
-    }
-
-    return { receiptPath: path, receiptFilename: file.name };
+  function openCreateModal() {
+    setEditingItem(null);
+    setForm(emptyForm);
+    setShowModal(true);
   }
 
-  async function handleCreateExpense(event) {
+  function openEditModal(item) {
+    setEditingItem(item);
+    setForm(itemToForm(item));
+    setShowModal(true);
+  }
+
+  function closeModal() {
+    setShowModal(false);
+    setEditingItem(null);
+    setForm(emptyForm);
+  }
+
+  async function handleSaveExpense(event) {
     event.preventDefault();
 
     if (!session?.access_token) {
@@ -90,16 +120,22 @@ export default function ExpensesPage() {
     setErrorMessage('');
 
     try {
-      let receiptPath = '';
-      let receiptFilename = '';
+      let receiptPath = form.existingReceiptPath;
+      let receiptFilename = form.existingReceiptFilename;
+      let clearReceipt = form.clearReceipt;
 
       if (form.receiptFile) {
-        const uploaded = await uploadReceipt(form.receiptFile);
+        const uploaded = await uploadAccountingFile(
+          form.receiptFile,
+          accountingUser.userId,
+          'receipts',
+        );
         receiptPath = uploaded.receiptPath;
         receiptFilename = uploaded.receiptFilename;
+        clearReceipt = false;
       }
 
-      await createExpense(session.access_token, {
+      const payload = {
         entryDate: form.entryDate,
         supplierName: form.supplierName,
         description: form.description,
@@ -110,15 +146,40 @@ export default function ExpensesPage() {
         notes: form.notes,
         receiptPath,
         receiptFilename,
-      });
+        clearReceipt,
+      };
 
-      setShowModal(false);
-      setForm(emptyForm);
+      if (editingItem) {
+        await updateExpense(session.access_token, { id: editingItem.id, ...payload });
+      } else {
+        await createExpense(session.access_token, payload);
+      }
+
+      closeModal();
       await loadData();
     } catch (error) {
       setErrorMessage(error.message || 'Could not save expense.');
     } finally {
       setIsSaving(false);
+    }
+  }
+
+  async function handleConfirmDelete() {
+    if (!session?.access_token || !deleteTarget) {
+      return;
+    }
+
+    setIsDeleting(true);
+    setErrorMessage('');
+
+    try {
+      await deleteExpense(session.access_token, deleteTarget.id);
+      setDeleteTarget(null);
+      await loadData();
+    } catch (error) {
+      setErrorMessage(error.message || 'Could not delete expense.');
+    } finally {
+      setIsDeleting(false);
     }
   }
 
@@ -136,7 +197,7 @@ export default function ExpensesPage() {
         <div className="accounting-header-actions">
           <PeriodPicker month={period.month} year={period.year} onChange={setPeriod} />
           {canEdit ? (
-            <button className="primary-action" type="button" onClick={() => setShowModal(true)}>
+            <button className="primary-action" type="button" onClick={openCreateModal}>
               <Plus size={16} />
               Add expense
             </button>
@@ -159,16 +220,17 @@ export default function ExpensesPage() {
               <th>GST</th>
               <th>Inc GST</th>
               <th>Receipt</th>
+              {canEdit ? <th /> : null}
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={7}>Loading expenses...</td>
+                <td colSpan={canEdit ? 8 : 7}>Loading expenses...</td>
               </tr>
             ) : items.length === 0 ? (
               <tr>
-                <td colSpan={7}>No expenses recorded for this period.</td>
+                <td colSpan={canEdit ? 8 : 7}>No expenses recorded for this period.</td>
               </tr>
             ) : (
               items.map((item) => (
@@ -180,12 +242,17 @@ export default function ExpensesPage() {
                   <td className="is-gst">{formatMoney(item.gstAmount)}</td>
                   <td>{formatMoney(item.amountIncGst)}</td>
                   <td>
-                    {item.receiptFilename ? (
-                      <span className="receipt-pill">{item.receiptFilename}</span>
-                    ) : (
-                      '—'
-                    )}
+                    <AttachmentLink filename={item.receiptFilename} path={item.receiptPath} />
                   </td>
+                  {canEdit ? (
+                    <td>
+                      <RecordActions
+                        canEdit
+                        onDelete={() => setDeleteTarget(item)}
+                        onEdit={() => openEditModal(item)}
+                      />
+                    </td>
+                  ) : null}
                 </tr>
               ))
             )}
@@ -194,15 +261,19 @@ export default function ExpensesPage() {
       </section>
 
       {showModal ? (
-        <div className="accounting-modal-backdrop" onClick={() => setShowModal(false)}>
+        <div className="accounting-modal-backdrop" onClick={closeModal}>
           <form
             className="accounting-modal"
             onClick={(event) => event.stopPropagation()}
-            onSubmit={handleCreateExpense}
+            onSubmit={handleSaveExpense}
           >
             <header>
-              <h2>Add expense</h2>
-              <p>Enter the invoice total inc GST and upload the supplier bill.</p>
+              <h2>{editingItem ? 'Edit expense' : 'Add expense'}</h2>
+              <p>
+                {editingItem
+                  ? 'Update the expense details or replace the receipt.'
+                  : 'Enter the invoice total inc GST and upload the supplier bill.'}
+              </p>
             </header>
 
             <label>
@@ -253,16 +324,37 @@ export default function ExpensesPage() {
               GST claimable on this expense
             </label>
 
+            {form.existingReceiptFilename && !form.clearReceipt ? (
+              <div className="current-attachment">
+                <span>Current file:</span>
+                <AttachmentLink
+                  filename={form.existingReceiptFilename}
+                  path={form.existingReceiptPath}
+                />
+                <button
+                  className="text-button"
+                  type="button"
+                  onClick={() => setForm({ ...form, clearReceipt: true, receiptFile: null })}
+                >
+                  Remove attachment
+                </button>
+              </div>
+            ) : null}
+
             <label className="file-upload">
               <span>
                 <Upload size={16} />
-                Upload invoice / receipt
+                {editingItem ? 'Replace receipt' : 'Upload invoice / receipt'}
               </span>
               <input
                 accept="image/*,application/pdf"
                 type="file"
                 onChange={(event) =>
-                  setForm({ ...form, receiptFile: event.target.files?.[0] || null })
+                  setForm({
+                    ...form,
+                    receiptFile: event.target.files?.[0] || null,
+                    clearReceipt: false,
+                  })
                 }
               />
               {form.receiptFile ? <small>{form.receiptFile.name}</small> : null}
@@ -278,15 +370,26 @@ export default function ExpensesPage() {
             </label>
 
             <div className="accounting-modal-actions">
-              <button className="secondary-action" type="button" onClick={() => setShowModal(false)}>
+              <button className="secondary-action" type="button" onClick={closeModal}>
                 Cancel
               </button>
               <button className="primary-action" disabled={isSaving} type="submit">
-                {isSaving ? 'Saving...' : 'Save expense'}
+                {isSaving ? 'Saving...' : editingItem ? 'Save changes' : 'Save expense'}
               </button>
             </div>
           </form>
         </div>
+      ) : null}
+
+      {deleteTarget ? (
+        <ConfirmModal
+          confirmLabel="Yes, delete"
+          isBusy={isDeleting}
+          message={`Are you sure you want to delete the expense from "${deleteTarget.supplierName}"? This cannot be undone.`}
+          title="Delete expense?"
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={handleConfirmDelete}
+        />
       ) : null}
     </div>
   );

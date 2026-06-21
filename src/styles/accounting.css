@@ -277,6 +277,114 @@
   color: #c2410c;
 }
 
+.attachment-link {
+  display: inline-flex;
+  align-items: center;
+  max-width: 180px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #c2410c;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-align: left;
+  text-decoration: underline;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachment-link:hover {
+  color: #9a3412;
+}
+
+.attachment-link:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+.record-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.icon-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #374151;
+  cursor: pointer;
+}
+
+.icon-action:hover {
+  background: #f9fafb;
+  color: #111827;
+}
+
+.icon-action.is-danger:hover {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #b91c1c;
+}
+
+.danger-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 10px;
+  padding: 11px 14px;
+  font-weight: 700;
+  cursor: pointer;
+  border: none;
+  background: #dc2626;
+  color: #ffffff;
+}
+
+.danger-action:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+.accounting-confirm-modal p {
+  margin: 0;
+  color: #6b7280;
+}
+
+.current-attachment {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #f9fafb;
+  font-size: 0.9rem;
+}
+
+.text-button {
+  border: none;
+  background: transparent;
+  color: #b91c1c;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.accounting-table th:last-child,
+.accounting-table td:last-child {
+  width: 88px;
+  text-align: right;
+}
+
 .accounting-modal-backdrop {
   position: fixed;
   inset: 0;
