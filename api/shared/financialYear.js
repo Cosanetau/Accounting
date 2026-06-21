@@ -1,8 +1,20 @@
+export const FIRST_FINANCIAL_YEAR_END = 2026;
+
+export function clampFinancialYear(financialYearEnd) {
+  const value = Number(financialYearEnd);
+
+  if (!value || value < FIRST_FINANCIAL_YEAR_END) {
+    return FIRST_FINANCIAL_YEAR_END;
+  }
+
+  return value;
+}
+
 export function getCurrentFinancialYearEnd(date = new Date()) {
   const year = date.getFullYear();
   const month = date.getMonth() + 1;
 
-  return month >= 7 ? year + 1 : year;
+  return clampFinancialYear(month >= 7 ? year + 1 : year);
 }
 
 export function getFinancialYearEndFromEntryDate(entryDate) {
@@ -12,15 +24,11 @@ export function getFinancialYearEndFromEntryDate(entryDate) {
     return getCurrentFinancialYearEnd();
   }
 
-  return month >= 7 ? year + 1 : year;
+  return clampFinancialYear(month >= 7 ? year + 1 : year);
 }
 
 export function getFinancialYearDateRange(financialYearEnd) {
-  const endYear = Number(financialYearEnd);
-
-  if (!endYear || endYear < 1900) {
-    return getFinancialYearDateRange(getCurrentFinancialYearEnd());
-  }
+  const endYear = clampFinancialYear(financialYearEnd);
 
   const startYear = endYear - 1;
 

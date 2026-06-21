@@ -5,6 +5,7 @@ import {
   requireAccountingUser,
 } from './shared/accountingAuth.js';
 import {
+  clampFinancialYear,
   getCurrentFinancialYearEnd,
   getFinancialYearDateRange,
 } from './shared/financialYear.js';
@@ -36,13 +37,7 @@ function getAction(request) {
 }
 
 function getFinancialYearFromRequest(request) {
-  const financialYear = Number(request.body?.financialYear);
-
-  if (financialYear) {
-    return financialYear;
-  }
-
-  return getCurrentFinancialYearEnd();
+  return clampFinancialYear(request.body?.financialYear || getCurrentFinancialYearEnd());
 }
 
 function getDateRangeFromRequest(request) {

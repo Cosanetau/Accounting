@@ -1,10 +1,15 @@
-import { formatFinancialYearLabel, getLocalFinancialYear } from '../utils/dateLocal';
+import {
+  clampFinancialYear,
+  FIRST_FINANCIAL_YEAR_END,
+  formatFinancialYearLabel,
+  getLocalFinancialYear,
+} from '../utils/dateLocal';
 
 export default function PeriodPicker({ financialYear, onChange }) {
   const currentFinancialYear = getLocalFinancialYear();
   const years = [];
 
-  for (let end = currentFinancialYear; end >= currentFinancialYear - 6; end -= 1) {
+  for (let end = currentFinancialYear; end >= FIRST_FINANCIAL_YEAR_END; end -= 1) {
     years.push(end);
   }
 
@@ -13,7 +18,7 @@ export default function PeriodPicker({ financialYear, onChange }) {
       <label>
         <span>Financial year</span>
         <select
-          value={financialYear}
+          value={clampFinancialYear(financialYear)}
           onChange={(event) => onChange(Number(event.target.value))}
         >
           {years.map((end) => (
