@@ -1,0 +1,456 @@
+.accounting-shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 260px 1fr;
+}
+
+.accounting-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 24px 18px;
+  border-right: 1px solid #e5e7eb;
+  background: #ffffff;
+}
+
+.accounting-brand {
+  display: flex;
+  flex-direction: column;
+  line-height: 1;
+  padding: 8px 10px 4px;
+}
+
+.accounting-brand-main {
+  color: #111827;
+  font-size: 1.85rem;
+  font-weight: 800;
+  letter-spacing: -0.05em;
+}
+
+.accounting-brand-sub {
+  margin-top: 4px;
+  color: #c2410c;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+}
+
+.accounting-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.accounting-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  color: #4b5563;
+  text-decoration: none;
+  font-weight: 600;
+  transition: 180ms ease;
+}
+
+.accounting-nav-link:hover,
+.accounting-nav-link.is-active {
+  background: #f9fafb;
+  color: #111827;
+  box-shadow: inset 3px 0 0 #ea580c;
+}
+
+.accounting-nav-link-muted {
+  margin-top: 8px;
+  font-size: 0.92rem;
+}
+
+.accounting-sidebar-foot {
+  margin-top: auto;
+  padding: 12px 10px 0;
+  border-top: 1px solid #f3f4f6;
+}
+
+.accounting-user-name {
+  font-weight: 700;
+  color: #111827;
+}
+
+.accounting-user-role {
+  margin-top: 4px;
+  color: #6b7280;
+  font-size: 0.82rem;
+  text-transform: capitalize;
+}
+
+.accounting-sidebar-foot button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  width: 100%;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #374151;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+
+.accounting-main {
+  padding: 28px;
+}
+
+.accounting-page-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  align-items: flex-start;
+  margin-bottom: 22px;
+}
+
+.accounting-page-header h1 {
+  margin: 6px 0 8px;
+  font-size: 2rem;
+  letter-spacing: -0.03em;
+}
+
+.accounting-page-header p {
+  margin: 0;
+  color: #6b7280;
+  max-width: 52ch;
+}
+
+.accounting-kicker {
+  color: #c2410c;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.accounting-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: end;
+}
+
+.primary-action,
+.secondary-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 10px;
+  padding: 11px 14px;
+  font-weight: 700;
+  cursor: pointer;
+  border: none;
+}
+
+.primary-action {
+  background: linear-gradient(135deg, #ff8a00, #ea580c);
+  color: #ffffff;
+  box-shadow: 0 10px 24px rgba(234, 88, 12, 0.18);
+}
+
+.secondary-action {
+  background: #ffffff;
+  color: #111827;
+  border: 1px solid #e5e7eb;
+}
+
+.gst-summary-bar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 14px;
+  margin-bottom: 22px;
+}
+
+.gst-summary-card {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 16px 18px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+}
+
+.gst-summary-card span {
+  display: block;
+  color: #6b7280;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.gst-summary-card strong {
+  display: block;
+  margin-top: 8px;
+  font-size: 1.35rem;
+}
+
+.gst-summary-card.is-net strong {
+  color: #c2410c;
+}
+
+.gst-summary-card.is-refund strong {
+  color: #047857;
+}
+
+.gst-summary-card.is-muted {
+  background: #f9fafb;
+}
+
+.period-picker {
+  display: flex;
+  gap: 10px;
+}
+
+.period-picker label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #6b7280;
+}
+
+.period-picker select {
+  min-width: 120px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: #ffffff;
+}
+
+.accounting-table-card {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+}
+
+.accounting-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.accounting-table th,
+.accounting-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid #f3f4f6;
+  text-align: left;
+  font-size: 0.94rem;
+}
+
+.accounting-table th {
+  background: #fafafa;
+  color: #6b7280;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.accounting-table td.is-gst {
+  color: #c2410c;
+  font-weight: 700;
+}
+
+.source-pill,
+.receipt-pill,
+.role-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: capitalize;
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.source-pill.is-stripe {
+  background: #fff7ed;
+  color: #c2410c;
+}
+
+.accounting-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.42);
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  z-index: 40;
+}
+
+.accounting-modal {
+  width: min(520px, 100%);
+  background: #ffffff;
+  border-radius: 18px;
+  padding: 22px;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.18);
+}
+
+.accounting-modal header h2 {
+  margin: 0 0 6px;
+}
+
+.accounting-modal header p {
+  margin: 0 0 18px;
+  color: #6b7280;
+}
+
+.accounting-modal label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+  font-weight: 600;
+}
+
+.accounting-modal input,
+.accounting-modal select,
+.accounting-modal textarea {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 11px 12px;
+}
+
+.accounting-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.gst-preview {
+  display: flex;
+  gap: 16px;
+  margin: -4px 0 14px;
+  color: #6b7280;
+  font-size: 0.9rem;
+}
+
+.checkbox-row {
+  flex-direction: row !important;
+  align-items: center;
+  gap: 10px !important;
+}
+
+.file-upload {
+  border: 1px dashed #d1d5db;
+  border-radius: 12px;
+  padding: 14px;
+  background: #fafafa;
+}
+
+.file-upload input[type='file'] {
+  margin-top: 10px;
+}
+
+.accounting-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.accounting-error-banner,
+.accounting-success-banner,
+.accounting-error {
+  margin-bottom: 16px;
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-weight: 600;
+}
+
+.accounting-error-banner,
+.accounting-error {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.accounting-success-banner {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.accounting-login-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background:
+    radial-gradient(circle at top right, rgba(255, 138, 0, 0.12), transparent 28%),
+    #eef1f5;
+}
+
+.accounting-login-card {
+  width: min(420px, 100%);
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 22px;
+  padding: 28px;
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.08);
+}
+
+.accounting-brand-login {
+  margin-bottom: 10px;
+}
+
+.accounting-login-copy {
+  color: #6b7280;
+  margin: 0 0 20px;
+}
+
+.accounting-login-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+  font-weight: 600;
+}
+
+.accounting-login-form input {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 11px 12px;
+}
+
+.accounting-login-form button {
+  width: 100%;
+  margin-top: 6px;
+  border: none;
+  border-radius: 10px;
+  padding: 12px 14px;
+  background: linear-gradient(135deg, #ff8a00, #ea580c);
+  color: #ffffff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.accounting-loading {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  color: #6b7280;
+  font-weight: 600;
+}
+
+@media (max-width: 900px) {
+  .accounting-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .accounting-sidebar {
+    border-right: none;
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  .accounting-page-header {
+    flex-direction: column;
+  }
+}
