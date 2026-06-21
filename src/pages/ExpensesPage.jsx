@@ -15,20 +15,23 @@ import {
   updateExpense,
 } from '../utils/accountingApi';
 import { formatMoney, splitGstFromInc } from '../utils/gst';
+import { getLocalDateString, getLocalPeriod, periodFromEntryDate } from '../utils/dateLocal';
 
-const emptyForm = {
-  entryDate: new Date().toISOString().slice(0, 10),
-  supplierName: '',
-  description: '',
-  amountIncGst: '',
-  gstClaimable: true,
-  category: 'general',
-  notes: '',
-  receiptFile: null,
-  existingReceiptPath: '',
-  existingReceiptFilename: '',
-  clearReceipt: false,
-};
+function createEmptyForm() {
+  return {
+    entryDate: getLocalDateString(),
+    supplierName: '',
+    description: '',
+    amountIncGst: '',
+    gstClaimable: true,
+    category: 'general',
+    notes: '',
+    receiptFile: null,
+    existingReceiptPath: '',
+    existingReceiptFilename: '',
+    clearReceipt: false,
+  };
+}
 
 function itemToForm(item) {
   return {
@@ -48,44 +51,48 @@ function itemToForm(item) {
 
 export default function ExpensesPage() {
   const { session, canEdit, accountingUser } = useAuth();
-  const now = new Date();
-  const [period, setPeriod] = useState({
-    year: now.getFullYear(),
-    month: now.getMonth() + 1,
-  });
+  const [period, setPeriod] = useState(() => getLocalPeriod());
   const [summary, setSummary] = useState(null);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
-  const [form, setForm] = useState(emptyForm);
+  const [form, setForm] = useState(() => createEmptyForm());
   const [errorMessage, setErrorMessage] = useState('');
+  const [modalError, setModalError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const loadData = useCallback(async () => {
-    if (!session?.access_token) {
-      return;
-    }
+  const loadData = useCallback(
+    async (periodOverride) => {
+      if (!session?.access_token) {
+        return;
+      }
 
-    setLoading(true);
-    setErrorMessage('');
+      const activePeriod = periodOverride || period;
 
-    try {
-      const [summaryResult, expenseResult] = await Promise.all([
-        fetchSummary(session.access_token, period),
-        listExpenses(session.access_token, period),
-      ]);
+      setLoading(true);
+      setErrorMessage('');
 
-      setSummary(summaryResult);
-      setItems(expenseResult.items || []);
-    } catch (error) {
-      setErrorMessage(error.message || 'Could not load expenses.');
-    } finally {
-      setLoading(false);
-    }
-  }, [session?.access_token, period]);
+      try {
+        const expenseResult = await listExpenses(session.access_token, activePeriod);
+        setItems(expenseResult.items || []);
+      } catch (error) {
+        setErrorMessage(error.message || 'Could not load expenses.');
+      }
+
+      try {
+        const summaryResult = await fetchSummary(session.access_token, activePeriod);
+        setSummary(summaryResult);
+      } catch (error) {
+        setErrorMessage((current) => current || error.message || 'Could not load GST summary.');
+      } finally {
+        setLoading(false);
+      }
+    },
+    [session?.access_token, period],
+  );
 
   useEffect(() => {
     void loadData();
@@ -93,12 +100,14 @@ export default function ExpensesPage() {
 
   function openCreateModal() {
     setEditingItem(null);
-    setForm(emptyForm);
+    setModalError('');
+    setForm(createEmptyForm());
     setShowModal(true);
   }
 
   function openEditModal(item) {
     setEditingItem(item);
+    setModalError('');
     setForm(itemToForm(item));
     setShowModal(true);
   }
@@ -106,7 +115,8 @@ export default function ExpensesPage() {
   function closeModal() {
     setShowModal(false);
     setEditingItem(null);
-    setForm(emptyForm);
+    setModalError('');
+    setForm(createEmptyForm());
   }
 
   async function handleSaveExpense(event) {
@@ -117,7 +127,7 @@ export default function ExpensesPage() {
     }
 
     setIsSaving(true);
-    setErrorMessage('');
+    setModalError('');
 
     try {
       let receiptPath = form.existingReceiptPath;
@@ -125,6 +135,10 @@ export default function ExpensesPage() {
       let clearReceipt = form.clearReceipt;
 
       if (form.receiptFile) {
+        if (!accountingUser?.userId) {
+          throw new Error('Your session expired. Sign out and sign in again.');
+        }
+
         const uploaded = await uploadAccountingFile(
           form.receiptFile,
           accountingUser.userId,
@@ -149,16 +163,22 @@ export default function ExpensesPage() {
         clearReceipt,
       };
 
+      let savedItem;
+
       if (editingItem) {
-        await updateExpense(session.access_token, { id: editingItem.id, ...payload });
+        const result = await updateExpense(session.access_token, { id: editingItem.id, ...payload });
+        savedItem = result.item;
       } else {
-        await createExpense(session.access_token, payload);
+        const result = await createExpense(session.access_token, payload);
+        savedItem = result.item;
       }
 
+      const savedPeriod = periodFromEntryDate(savedItem?.entryDate || form.entryDate);
+      setPeriod(savedPeriod);
       closeModal();
-      await loadData();
+      await loadData(savedPeriod);
     } catch (error) {
-      setErrorMessage(error.message || 'Could not save expense.');
+      setModalError(error.message || 'Could not save expense.');
     } finally {
       setIsSaving(false);
     }
@@ -275,6 +295,8 @@ export default function ExpensesPage() {
                   : 'Enter the invoice total inc GST and upload the supplier bill.'}
               </p>
             </header>
+
+            {modalError ? <div className="accounting-error">{modalError}</div> : null}
 
             <label>
               Date

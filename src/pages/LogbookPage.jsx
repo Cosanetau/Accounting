@@ -10,16 +10,19 @@ import {
   listLogbook,
   updateLogbookEntry,
 } from '../utils/accountingApi';
+import { getLocalDateString, getLocalPeriod, periodFromEntryDate } from '../utils/dateLocal';
 
-const emptyForm = {
-  entryDate: new Date().toISOString().slice(0, 10),
-  description: '',
-  purpose: '',
-  startLocation: '',
-  endLocation: '',
-  distanceKm: '',
-  notes: '',
-};
+function createEmptyForm() {
+  return {
+    entryDate: getLocalDateString(),
+    description: '',
+    purpose: '',
+    startLocation: '',
+    endLocation: '',
+    distanceKm: '',
+    notes: '',
+  };
+}
 
 function itemToForm(item) {
   return {
@@ -35,38 +38,40 @@ function itemToForm(item) {
 
 export default function LogbookPage() {
   const { session, canEdit } = useAuth();
-  const now = new Date();
-  const [period, setPeriod] = useState({
-    year: now.getFullYear(),
-    month: now.getMonth() + 1,
-  });
+  const [period, setPeriod] = useState(() => getLocalPeriod());
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
-  const [form, setForm] = useState(emptyForm);
+  const [form, setForm] = useState(() => createEmptyForm());
   const [errorMessage, setErrorMessage] = useState('');
+  const [modalError, setModalError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const loadData = useCallback(async () => {
-    if (!session?.access_token) {
-      return;
-    }
+  const loadData = useCallback(
+    async (periodOverride) => {
+      if (!session?.access_token) {
+        return;
+      }
 
-    setLoading(true);
-    setErrorMessage('');
+      const activePeriod = periodOverride || period;
 
-    try {
-      const result = await listLogbook(session.access_token, period);
-      setItems(result.items || []);
-    } catch (error) {
-      setErrorMessage(error.message || 'Could not load log book.');
-    } finally {
-      setLoading(false);
-    }
-  }, [session?.access_token, period]);
+      setLoading(true);
+      setErrorMessage('');
+
+      try {
+        const result = await listLogbook(session.access_token, activePeriod);
+        setItems(result.items || []);
+      } catch (error) {
+        setErrorMessage(error.message || 'Could not load log book.');
+      } finally {
+        setLoading(false);
+      }
+    },
+    [session?.access_token, period],
+  );
 
   useEffect(() => {
     void loadData();
@@ -74,12 +79,14 @@ export default function LogbookPage() {
 
   function openCreateModal() {
     setEditingItem(null);
-    setForm(emptyForm);
+    setModalError('');
+    setForm(createEmptyForm());
     setShowModal(true);
   }
 
   function openEditModal(item) {
     setEditingItem(item);
+    setModalError('');
     setForm(itemToForm(item));
     setShowModal(true);
   }
@@ -87,7 +94,8 @@ export default function LogbookPage() {
   function closeModal() {
     setShowModal(false);
     setEditingItem(null);
-    setForm(emptyForm);
+    setModalError('');
+    setForm(createEmptyForm());
   }
 
   async function handleSaveEntry(event) {
@@ -98,7 +106,7 @@ export default function LogbookPage() {
     }
 
     setIsSaving(true);
-    setErrorMessage('');
+    setModalError('');
 
     try {
       const payload = {
@@ -106,16 +114,25 @@ export default function LogbookPage() {
         distanceKm: form.distanceKm ? Number(form.distanceKm) : null,
       };
 
+      let savedItem;
+
       if (editingItem) {
-        await updateLogbookEntry(session.access_token, { id: editingItem.id, ...payload });
+        const result = await updateLogbookEntry(session.access_token, {
+          id: editingItem.id,
+          ...payload,
+        });
+        savedItem = result.item;
       } else {
-        await createLogbookEntry(session.access_token, payload);
+        const result = await createLogbookEntry(session.access_token, payload);
+        savedItem = result.item;
       }
 
+      const savedPeriod = periodFromEntryDate(savedItem?.entryDate || form.entryDate);
+      setPeriod(savedPeriod);
       closeModal();
-      await loadData();
+      await loadData(savedPeriod);
     } catch (error) {
-      setErrorMessage(error.message || 'Could not save log book entry.');
+      setModalError(error.message || 'Could not save log book entry.');
     } finally {
       setIsSaving(false);
     }
@@ -220,6 +237,8 @@ export default function LogbookPage() {
               <h2>{editingItem ? 'Edit log book entry' : 'Add log book entry'}</h2>
               <p>Record a trip or business activity for your accountant.</p>
             </header>
+
+            {modalError ? <div className="accounting-error">{modalError}</div> : null}
 
             <label>
               Date
