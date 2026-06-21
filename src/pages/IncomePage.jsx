@@ -1,5 +1,5 @@
 import { Download, Plus, Upload } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import AttachmentLink from '../components/AttachmentLink';
 import ConfirmModal from '../components/ConfirmModal';
 import GstSummaryBar from '../components/GstSummaryBar';
@@ -63,6 +63,8 @@ export default function IncomePage() {
   const [modalError, setModalError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [syncNotice, setSyncNotice] = useState('');
+  const stripeSyncStarted = useRef(false);
 
   const loadData = useCallback(
     async (financialYearOverride) => {
@@ -102,6 +104,31 @@ export default function IncomePage() {
     void loadData();
   }, [loadData]);
 
+  useEffect(() => {
+    if (!canEdit || !session?.access_token || stripeSyncStarted.current) {
+      return;
+    }
+
+    stripeSyncStarted.current = true;
+
+    async function autoSyncStripe() {
+      try {
+        const result = await syncStripeIncome(session.access_token);
+
+        if (result.imported > 0) {
+          setSyncNotice(
+            `Imported ${result.imported} new Stripe invoice${result.imported === 1 ? '' : 's'}.`,
+          );
+          await loadData();
+        }
+      } catch {
+        // Stripe may be unconfigured in local dev — manual refresh remains available.
+      }
+    }
+
+    void autoSyncStripe();
+  }, [canEdit, loadData, session?.access_token]);
+
   function openCreateModal() {
     setEditingItem(null);
     setModalError('');
@@ -130,12 +157,19 @@ export default function IncomePage() {
 
     setSyncing(true);
     setErrorMessage('');
+    setSyncNotice('');
 
     try {
       const result = await syncStripeIncome(session.access_token);
-      window.alert(
-        `Stripe sync complete. Imported ${result.imported}, skipped ${result.skipped}.`,
-      );
+
+      if (result.imported > 0) {
+        setSyncNotice(
+          `Imported ${result.imported} new Stripe invoice${result.imported === 1 ? '' : 's'}.`,
+        );
+      } else {
+        setSyncNotice('Stripe is up to date — no new invoices to import.');
+      }
+
       await loadData();
     } catch (error) {
       setErrorMessage(error.message || 'Stripe sync failed.');
@@ -235,7 +269,7 @@ export default function IncomePage() {
         <div>
           <span className="accounting-kicker">Income</span>
           <h1>Sales &amp; revenue</h1>
-          <p>Stripe subscriptions import automatically. Add other sales manually.</p>
+          <p>Paid Stripe invoices import automatically with customer, GST, and PDF attached.</p>
         </div>
 
         <div className="accounting-header-actions">
@@ -249,7 +283,7 @@ export default function IncomePage() {
                 onClick={handleSyncStripe}
               >
                 <Download size={16} />
-                {syncing ? 'Syncing Stripe...' : 'Import from Stripe'}
+                {syncing ? 'Refreshing Stripe...' : 'Refresh from Stripe'}
               </button>
               <button className="primary-action" type="button" onClick={openCreateModal}>
                 <Plus size={16} />
@@ -261,6 +295,8 @@ export default function IncomePage() {
       </header>
 
       <GstSummaryBar loading={loading} summary={summary} />
+
+      {syncNotice ? <div className="accounting-success-banner">{syncNotice}</div> : null}
 
       {errorMessage ? <div className="accounting-error-banner">{errorMessage}</div> : null}
 

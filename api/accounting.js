@@ -568,7 +568,6 @@ export default async function handler(request, response) {
       const result = await syncStripeIncome({
         supabaseAdmin: auth.supabaseAdmin,
         createdBy: auth.profile.id,
-        startingAfter: String(request.body?.startingAfter || '').trim(),
       });
 
       return response.status(200).json(result);
