@@ -281,7 +281,7 @@ export default function ExpensesPage() {
       </section>
 
       {showModal ? (
-        <div className="accounting-modal-backdrop" onClick={closeModal}>
+        <div className="accounting-modal-backdrop">
           <form
             className="accounting-modal"
             onClick={(event) => event.stopPropagation()}
