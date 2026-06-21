@@ -28,8 +28,8 @@ export function fetchAccountingMe(token) {
   return request('me', { token });
 }
 
-export function fetchSummary(token, { year, month } = {}) {
-  return request('summary', { token, body: { year, month }, method: 'POST' });
+export function fetchSummary(token, { financialYear } = {}) {
+  return request('summary', { token, body: { financialYear }, method: 'POST' });
 }
 
 export function listIncome(token, filters = {}) {

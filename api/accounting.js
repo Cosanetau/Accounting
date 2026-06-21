@@ -4,6 +4,10 @@ import {
   mapLogbookRow,
   requireAccountingUser,
 } from './shared/accountingAuth.js';
+import {
+  getCurrentFinancialYearEnd,
+  getFinancialYearDateRange,
+} from './shared/financialYear.js';
 import { combineGstFromEx, getPeriodSummary, splitGstFromInc } from './shared/gstSummary.js';
 import { syncStripeIncome } from './shared/stripeIncomeSync.js';
 
@@ -31,12 +35,18 @@ function getAction(request) {
   return String(request.body?.action || '').trim();
 }
 
-function getPeriod(request) {
-  const now = new Date();
-  const year = Number(request.body?.year || now.getFullYear());
-  const month = Number(request.body?.month || now.getMonth() + 1);
+function getFinancialYearFromRequest(request) {
+  const financialYear = Number(request.body?.financialYear);
 
-  return { year, month };
+  if (financialYear) {
+    return financialYear;
+  }
+
+  return getCurrentFinancialYearEnd();
+}
+
+function getDateRangeFromRequest(request) {
+  return getFinancialYearDateRange(getFinancialYearFromRequest(request));
 }
 
 export default async function handler(request, response) {
@@ -65,8 +75,8 @@ export default async function handler(request, response) {
     }
 
     try {
-      const { year, month } = getPeriod(request);
-      const summary = await getPeriodSummary(auth.supabaseAdmin, { year, month });
+      const financialYear = getFinancialYearFromRequest(request);
+      const summary = await getPeriodSummary(auth.supabaseAdmin, { financialYear });
       return response.status(200).json(summary);
     } catch (error) {
       return response.status(400).json({ error: error.message || 'Could not load summary.' });
@@ -80,11 +90,7 @@ export default async function handler(request, response) {
       return response.status(auth.status).json({ error: auth.error });
     }
 
-    const { year, month } = getPeriod(request);
-    const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
-    const endMonth = month === 12 ? 1 : month + 1;
-    const endYear = month === 12 ? year + 1 : year;
-    const endDate = `${endYear}-${String(endMonth).padStart(2, '0')}-01`;
+    const { startDate, endDate } = getDateRangeFromRequest(request);
 
     const { data, error } = await auth.supabaseAdmin
       .from('accounting_income')
@@ -253,11 +259,7 @@ export default async function handler(request, response) {
       return response.status(auth.status).json({ error: auth.error });
     }
 
-    const { year, month } = getPeriod(request);
-    const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
-    const endMonth = month === 12 ? 1 : month + 1;
-    const endYear = month === 12 ? year + 1 : year;
-    const endDate = `${endYear}-${String(endMonth).padStart(2, '0')}-01`;
+    const { startDate, endDate } = getDateRangeFromRequest(request);
 
     const { data, error } = await auth.supabaseAdmin
       .from('accounting_expenses')
@@ -429,11 +431,7 @@ export default async function handler(request, response) {
       return response.status(auth.status).json({ error: auth.error });
     }
 
-    const { year, month } = getPeriod(request);
-    const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
-    const endMonth = month === 12 ? 1 : month + 1;
-    const endYear = month === 12 ? year + 1 : year;
-    const endDate = `${endYear}-${String(endMonth).padStart(2, '0')}-01`;
+    const { startDate, endDate } = getDateRangeFromRequest(request);
 
     const { data, error } = await auth.supabaseAdmin
       .from('accounting_logbook_entries')

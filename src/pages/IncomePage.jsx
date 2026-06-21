@@ -16,7 +16,7 @@ import {
   updateIncome,
 } from '../utils/accountingApi';
 import { formatMoney, splitGstFromInc } from '../utils/gst';
-import { getLocalDateString, getLocalPeriod, periodFromEntryDate } from '../utils/dateLocal';
+import { getLocalDateString, getLocalFinancialYear, financialYearFromEntryDate } from '../utils/dateLocal';
 
 function createEmptyForm() {
   return {
@@ -50,7 +50,7 @@ function itemToForm(item) {
 
 export default function IncomePage() {
   const { session, canEdit, accountingUser } = useAuth();
-  const [period, setPeriod] = useState(() => getLocalPeriod());
+  const [financialYear, setFinancialYear] = useState(() => getLocalFinancialYear());
   const [summary, setSummary] = useState(null);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -65,25 +65,29 @@ export default function IncomePage() {
   const [isDeleting, setIsDeleting] = useState(false);
 
   const loadData = useCallback(
-    async (periodOverride) => {
+    async (financialYearOverride) => {
       if (!session?.access_token) {
         return;
       }
 
-      const activePeriod = periodOverride || period;
+      const activeFinancialYear = financialYearOverride || financialYear;
 
       setLoading(true);
       setErrorMessage('');
 
       try {
-        const incomeResult = await listIncome(session.access_token, activePeriod);
+        const incomeResult = await listIncome(session.access_token, {
+          financialYear: activeFinancialYear,
+        });
         setItems(incomeResult.items || []);
       } catch (error) {
         setErrorMessage(error.message || 'Could not load income.');
       }
 
       try {
-        const summaryResult = await fetchSummary(session.access_token, activePeriod);
+        const summaryResult = await fetchSummary(session.access_token, {
+          financialYear: activeFinancialYear,
+        });
         setSummary(summaryResult);
       } catch (error) {
         setErrorMessage((current) => current || error.message || 'Could not load GST summary.');
@@ -91,7 +95,7 @@ export default function IncomePage() {
         setLoading(false);
       }
     },
-    [session?.access_token, period],
+    [session?.access_token, financialYear],
   );
 
   useEffect(() => {
@@ -193,10 +197,10 @@ export default function IncomePage() {
         savedItem = result.item;
       }
 
-      const savedPeriod = periodFromEntryDate(savedItem?.entryDate || form.entryDate);
-      setPeriod(savedPeriod);
+      const savedFinancialYear = financialYearFromEntryDate(savedItem?.entryDate || form.entryDate);
+      setFinancialYear(savedFinancialYear);
       closeModal();
-      await loadData(savedPeriod);
+      await loadData(savedFinancialYear);
     } catch (error) {
       setModalError(error.message || 'Could not save sale.');
     } finally {
@@ -235,7 +239,7 @@ export default function IncomePage() {
         </div>
 
         <div className="accounting-header-actions">
-          <PeriodPicker month={period.month} year={period.year} onChange={setPeriod} />
+          <PeriodPicker financialYear={financialYear} onChange={setFinancialYear} />
           {canEdit ? (
             <>
               <button
@@ -282,7 +286,7 @@ export default function IncomePage() {
               </tr>
             ) : items.length === 0 ? (
               <tr>
-                <td colSpan={canEdit ? 9 : 8}>No income recorded for this period.</td>
+                <td colSpan={canEdit ? 9 : 8}>No income recorded for this financial year.</td>
               </tr>
             ) : (
               items.map((item) => (

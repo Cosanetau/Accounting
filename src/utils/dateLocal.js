@@ -6,19 +6,25 @@ export function getLocalDateString(date = new Date()) {
   return `${year}-${month}-${day}`;
 }
 
-export function getLocalPeriod(date = new Date()) {
-  return {
-    year: date.getFullYear(),
-    month: date.getMonth() + 1,
-  };
+export function getLocalFinancialYear(date = new Date()) {
+  const year = date.getFullYear();
+  const month = date.getMonth() + 1;
+
+  return month >= 7 ? year + 1 : year;
 }
 
-export function periodFromEntryDate(entryDate) {
+export function financialYearFromEntryDate(entryDate) {
   const [year, month] = String(entryDate || '').split('-').map(Number);
 
   if (!year || !month) {
-    return getLocalPeriod();
+    return getLocalFinancialYear();
   }
 
-  return { year, month };
+  return month >= 7 ? year + 1 : year;
+}
+
+export function formatFinancialYearLabel(endYear) {
+  const startYear = endYear - 1;
+
+  return `FY ${startYear}–${String(endYear).slice(-2)}`;
 }

@@ -10,7 +10,7 @@ import {
   listLogbook,
   updateLogbookEntry,
 } from '../utils/accountingApi';
-import { getLocalDateString, getLocalPeriod, periodFromEntryDate } from '../utils/dateLocal';
+import { getLocalDateString, getLocalFinancialYear, financialYearFromEntryDate } from '../utils/dateLocal';
 
 function createEmptyForm() {
   return {
@@ -38,7 +38,7 @@ function itemToForm(item) {
 
 export default function LogbookPage() {
   const { session, canEdit } = useAuth();
-  const [period, setPeriod] = useState(() => getLocalPeriod());
+  const [financialYear, setFinancialYear] = useState(() => getLocalFinancialYear());
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -51,18 +51,20 @@ export default function LogbookPage() {
   const [isDeleting, setIsDeleting] = useState(false);
 
   const loadData = useCallback(
-    async (periodOverride) => {
+    async (financialYearOverride) => {
       if (!session?.access_token) {
         return;
       }
 
-      const activePeriod = periodOverride || period;
+      const activeFinancialYear = financialYearOverride || financialYear;
 
       setLoading(true);
       setErrorMessage('');
 
       try {
-        const result = await listLogbook(session.access_token, activePeriod);
+        const result = await listLogbook(session.access_token, {
+          financialYear: activeFinancialYear,
+        });
         setItems(result.items || []);
       } catch (error) {
         setErrorMessage(error.message || 'Could not load log book.');
@@ -70,7 +72,7 @@ export default function LogbookPage() {
         setLoading(false);
       }
     },
-    [session?.access_token, period],
+    [session?.access_token, financialYear],
   );
 
   useEffect(() => {
@@ -127,10 +129,10 @@ export default function LogbookPage() {
         savedItem = result.item;
       }
 
-      const savedPeriod = periodFromEntryDate(savedItem?.entryDate || form.entryDate);
-      setPeriod(savedPeriod);
+      const savedFinancialYear = financialYearFromEntryDate(savedItem?.entryDate || form.entryDate);
+      setFinancialYear(savedFinancialYear);
       closeModal();
-      await loadData(savedPeriod);
+      await loadData(savedFinancialYear);
     } catch (error) {
       setModalError(error.message || 'Could not save log book entry.');
     } finally {
@@ -167,7 +169,7 @@ export default function LogbookPage() {
         </div>
 
         <div className="accounting-header-actions">
-          <PeriodPicker month={period.month} year={period.year} onChange={setPeriod} />
+          <PeriodPicker financialYear={financialYear} onChange={setFinancialYear} />
           {canEdit ? (
             <button className="primary-action" type="button" onClick={openCreateModal}>
               <Plus size={16} />
@@ -199,7 +201,7 @@ export default function LogbookPage() {
               </tr>
             ) : items.length === 0 ? (
               <tr>
-                <td colSpan={canEdit ? 7 : 6}>No log book entries for this period.</td>
+                <td colSpan={canEdit ? 7 : 6}>No log book entries for this financial year.</td>
               </tr>
             ) : (
               items.map((item) => (

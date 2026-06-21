@@ -40,11 +40,10 @@ export function combineGstFromEx(amountExGst) {
   };
 }
 
-export async function getPeriodSummary(supabaseAdmin, { year, month }) {
-  const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
-  const endMonth = month === 12 ? 1 : month + 1;
-  const endYear = month === 12 ? year + 1 : year;
-  const endDate = `${endYear}-${String(endMonth).padStart(2, '0')}-01`;
+import { getFinancialYearDateRange } from './financialYear.js';
+
+export async function getPeriodSummary(supabaseAdmin, { financialYear }) {
+  const { startDate, endDate } = getFinancialYearDateRange(financialYear);
 
   const [{ data: incomeRows }, { data: expenseRows }] = await Promise.all([
     supabaseAdmin
@@ -83,8 +82,7 @@ export async function getPeriodSummary(supabaseAdmin, { year, month }) {
   const netGst = roundMoney(income.gst - expenses.gst);
 
   return {
-    year,
-    month,
+    financialYear: getFinancialYearDateRange(financialYear).financialYear,
     income: {
       amountExGst: roundMoney(income.ex),
       gstAmount: roundMoney(income.gst),
